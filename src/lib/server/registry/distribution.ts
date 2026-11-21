@@ -338,8 +338,12 @@ async function errorFrom(res: Response, what = 'Registry'): Promise<RegistryErro
 	return new RegistryError(detail ? `${msg} (${detail})` : msg, status);
 }
 
+/** The TLS errors a plain-HTTP server causes when spoken to over HTTPS. */
+export const PLAIN_HTTP_CODES = new Set(['ERR_SSL_WRONG_VERSION_NUMBER', 'ERR_SSL_PACKET_LENGTH_TOO_LONG', 'ERR_SSL_HTTP_REQUEST']);
+
 function causeOf(err: unknown): string {
 	const e = err as { name?: string; message?: string; cause?: { code?: string; message?: string } };
 	if (e?.name === 'TimeoutError') return 'timed out';
+	if (PLAIN_HTTP_CODES.has(e?.cause?.code ?? '')) return 'it answers plain HTTP, not HTTPS. Enter the address with http:// in front';
 	return e?.cause?.code ?? e?.cause?.message ?? e?.message ?? String(err);
 }

@@ -1,6 +1,7 @@
 import { KINDS, registryUrl } from '#lib/registries.ts';
 import type { RegistryConfig, RegistryKind, RegistrySecrets } from '#lib/types.ts';
 import { BadRequest, list, str } from './http.ts';
+import { PLAIN_HTTP_CODES } from './registry/distribution.ts';
 
 /**
  * Reads a registry from the add/edit form. Secrets left blank on an edit keep what's stored
@@ -72,4 +73,22 @@ export function readRegistry(b: Record<string, unknown>, existingKind?: Registry
 	// Repository names are lower case on every registry.
 	if (repos.length) config.repositories = repos.map((r) => r.replace(/^\/+|\/+$/g, '').toLowerCase());
 	return { name, kind, config, secrets };
+}
+
+/**
+ * A registry address typed without a scheme defaults to HTTPS (except localhost). Registries on a LAN
+ * often serve plain HTTP, so when the HTTPS handshake gets an HTTP answer instead, store the address
+ * as http://. An address typed with its scheme is kept as typed.
+ */
+export async function resolveScheme(kind: RegistryKind, config: RegistryConfig): Promise<RegistryConfig> {
+	if (kind !== 'registry' || !config.url || /^https?:\/\//i.test(config.url.trim())) return config;
+	const url = registryUrl(kind, config);
+	if (!url.startsWith('https://')) return config;
+	try {
+		await fetch(`${url}/v2/`, { method: 'GET', signal: AbortSignal.timeout(5000) });
+	} catch (err) {
+		const code = (err as { cause?: { code?: string } }).cause?.code ?? '';
+		if (PLAIN_HTTP_CODES.has(code)) return { ...config, url: url.replace(/^https:/, 'http:') };
+	}
+	return config;
 }

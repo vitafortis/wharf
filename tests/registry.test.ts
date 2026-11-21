@@ -176,3 +176,11 @@ test('registry secrets are encrypted at rest and never listed', async () => {
 	assert.deepEqual(store.getRegistry(registryId)!.secrets, ['password']);
 	assert.ok(!JSON.stringify(store.listRegistries()).includes('hunter22'));
 });
+
+test('an address without a scheme falls back to http:// when the registry speaks plain HTTP', async () => {
+	const { resolveScheme } = await import('../src/lib/server/registry-input.ts');
+	// 0.0.0.0 reaches the mock but isn't treated as localhost, so the HTTPS probe runs.
+	const bare = mock.url.replace(/^http:\/\/127\.0\.0\.1/, '0.0.0.0');
+	assert.equal((await resolveScheme('registry', { url: bare })).url, `http://${bare}`);
+	assert.equal((await resolveScheme('registry', { url: `https://${bare}` })).url, `https://${bare}`);
+});
