@@ -16,6 +16,7 @@ import type {
 	RegistrySecrets,
 	RegistryStatus,
 	RepoRow,
+	RepoSummary,
 	Settings,
 	ShareLink,
 	User,
@@ -431,8 +432,8 @@ const IMAGE_ORDER = `COALESCE(t.pushed_at, m.created) DESC NULLS LAST, t.repo, t
 
 export type SearchOptions = { q: string; registryId?: string; limit?: number; offset?: number };
 
-/** Searches every indexed tag. See search.ts for the query language. */
-export function searchImages({ q, registryId, limit = 100, offset = 0 }: SearchOptions): { rows: ImageRow[]; total: number } {
+/** The WHERE clause for a search over tags. See search.ts for the query language. */
+function searchWhere(q: string, registryId?: string): { w: string; args: SQLInputValue[] } {
 	const where: string[] = [];
 	const args: SQLInputValue[] = [];
 	if (registryId) {
@@ -495,12 +496,40 @@ export function searchImages({ q, registryId, limit = 100, offset = 0 }: SearchO
 		}
 		where.push(term.negate ? `NOT ${clause}` : clause);
 	}
-	const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
+	return { w: where.length ? `WHERE ${where.join(' AND ')}` : '', args };
+}
+
+/** Searches every indexed tag. */
+export function searchImages({ q, registryId, limit = 100, offset = 0 }: SearchOptions): { rows: ImageRow[]; total: number } {
+	const { w, args } = searchWhere(q, registryId);
 	const total = (db().prepare(`SELECT COUNT(*) AS n ${IMAGE_FROM} ${w}`).get(...args) as { n: number }).n;
 	const rows = db()
 		.prepare(`SELECT ${IMAGE_COLS} ${IMAGE_FROM} ${w} ORDER BY ${IMAGE_ORDER} LIMIT ? OFFSET ?`)
 		.all(...args, limit, offset) as ImageRowDb[];
 	return { rows: rows.map(toImage), total };
+}
+
+/**
+ * The same search, one row per image (registry + repository): how many of its tags match, how many
+ * distinct versions (digests) they cover, and its newest matching tags.
+ */
+export function searchRepos({ q, registryId, limit = 100, offset = 0 }: SearchOptions): { repos: RepoSummary[]; total: number } {
+	const { w, args } = searchWhere(q, registryId);
+	const d = db();
+	const total = (d.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 ${IMAGE_FROM} ${w} GROUP BY t.registry_id, t.repo)`).get(...args) as { n: number }).n;
+	const groups = d
+		.prepare(
+			`SELECT t.registry_id, t.repo, COUNT(*) AS matches, COUNT(DISTINCT t.digest) AS versions, MAX(COALESCE(t.pushed_at, m.created)) AS updated_at,
+				(SELECT COUNT(*) FROM tags x WHERE x.registry_id = t.registry_id AND x.repo = t.repo) AS tag_count
+			 ${IMAGE_FROM} ${w} GROUP BY t.registry_id, t.repo ORDER BY updated_at DESC NULLS LAST, t.repo LIMIT ? OFFSET ?`
+		)
+		.all(...args, limit, offset) as { registry_id: string; repo: string; matches: number; versions: number; updated_at: string | null; tag_count: number }[];
+	const newest = d.prepare(`SELECT ${IMAGE_COLS} ${IMAGE_FROM} ${w ? `${w} AND` : 'WHERE'} t.registry_id = ? AND t.repo = ? ORDER BY ${IMAGE_ORDER} LIMIT 8`);
+	const repos = groups.map((g): RepoSummary => {
+		const rows = (newest.all(...args, g.registry_id, g.repo) as ImageRowDb[]).map(toImage);
+		return { registryId: g.registry_id, repo: g.repo, tagCount: g.tag_count, matches: g.matches, versions: g.versions, updatedAt: g.updated_at, latest: rows[0], tags: rows.map((r) => r.tag) };
+	});
+	return { repos, total };
 }
 
 export function listRepos(registryId: string): RepoRow[] {

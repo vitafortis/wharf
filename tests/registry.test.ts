@@ -87,6 +87,19 @@ test('search by words, tag globs, digests, image IDs, references, labels and pla
 	assert.deepEqual(q('tag:v1_2'), []);
 });
 
+test('search grouped by image counts matching tags and versions', () => {
+	const all = store.searchRepos({ q: '' });
+	assert.equal(all.total, 2);
+	const api = all.repos.find((r) => r.repo === 'team/api')!;
+	assert.equal(api.tagCount, 3);
+	assert.equal(api.matches, 3);
+	assert.equal(api.versions, 2); // latest and v1.2.0 share the index's digest
+	assert.deepEqual([...api.tags].sort(), ['latest', 'v1.10.0-rc1', 'v1.2.0']);
+	const rc = store.searchRepos({ q: 'tag:*-rc*' });
+	assert.deepEqual(rc.repos.map((r) => [r.repo, r.matches, r.tagCount]), [['team/api', 1, 3]]);
+	assert.equal(store.searchRepos({ q: 'nothing-like-this' }).total, 0);
+});
+
 test('image detail reads every platform live', async () => {
 	const d = await imageDetail(store.getRegistry(registryId)!, 'team/api', 'v1.2.0');
 	assert.equal(d.digest, mock.digests.index);

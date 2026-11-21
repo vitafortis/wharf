@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { digestPrefix, likePattern, parseSearch, splitRef } from '../src/lib/search.ts';
-import { imageHref, parsePath, pullRef, registryHost, registryUrl } from '../src/lib/registries.ts';
+import { groupByDigest, imageHref, parsePath, pullRef, registryHost, registryUrl } from '../src/lib/registries.ts';
 
 test('bare words, keys, digests and references', () => {
 	assert.deepEqual(parseSearch('nginx 1.27'), [
@@ -54,4 +54,16 @@ test('registry addresses and pull references', () => {
 	assert.equal(pullRef('docker.io', 'library/nginx', '1.27'), 'nginx:1.27');
 	assert.equal(pullRef('ghcr.io', 'acme/api', 'sha256:ab'), 'ghcr.io/acme/api@sha256:ab');
 	assert.equal(pullRef('', 'app', 'latest'), 'app:latest');
+});
+
+test('tags on one digest group into a version, chosen names first', () => {
+	const row = (tag: string, digest: string) => ({ registryId: 'r', repo: 'app', tag, digest });
+	const groups = groupByDigest([row('a46d888c9536', 'sha256:a'), row('develop', 'sha256:a'), row('cbc825e084c1', 'sha256:b'), row('latest', 'sha256:a')]);
+	assert.deepEqual(
+		groups.map((g) => [g.digest, g.tag, g.aliases]),
+		[
+			['sha256:a', 'latest', ['develop', 'a46d888c9536']],
+			['sha256:b', 'cbc825e084c1', []]
+		]
+	);
 });

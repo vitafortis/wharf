@@ -106,3 +106,29 @@ export function parsePath(path: string): { repo: string; ref: string | null } {
 	if (colon > 0) return { repo: path.slice(0, colon), ref: path.slice(colon + 1) };
 	return { repo: path.replace(/\/+$/, ''), ref: null };
 }
+
+/** Names people chose (latest, develop, v1.2) before generated ones (a 12-character commit hash). */
+const generated = (tag: string) => /^[0-9a-f]{7,64}$/.test(tag) || /^sha256-/.test(tag);
+export function tagOrder(a: string, b: string): number {
+	if (a === 'latest' || b === 'latest') return a === 'latest' ? -1 : 1;
+	if (generated(a) !== generated(b)) return generated(a) ? 1 : -1;
+	return 0;
+}
+
+/**
+ * Tags that point at the same digest are one version of the image: one row with its tags as
+ * aliases. Keeps the rows' order (newest first) and puts chosen names before generated ones.
+ */
+export function groupByDigest<T extends { registryId: string; repo: string; tag: string; digest: string }>(rows: T[]): (T & { aliases: string[] })[] {
+	const out = new Map<string, T & { aliases: string[] }>();
+	for (const r of rows) {
+		const key = `${r.registryId}/${r.repo}@${r.digest}`;
+		const g = out.get(key);
+		if (g) g.aliases.push(r.tag);
+		else out.set(key, { ...r, aliases: [] });
+	}
+	return [...out.values()].map((g) => {
+		const [tag, ...aliases] = [g.tag, ...g.aliases].sort(tagOrder);
+		return { ...g, tag, aliases };
+	});
+}

@@ -22,6 +22,7 @@
   - **Docker Hub**: your namespaces with a personal access token, plus any public repositories (`nginx`, `bitnami/redis`). Listing uses Hub's API, so syncing doesn't spend your pull rate limit.
   - **GitHub Packages**: a user's or organization's container packages on ghcr.io.
   - **Docker host**: the images on the Docker Engine Wharf runs on, through its socket.
+- **Images, then versions**: the Images page lists each image once, with its newest tags, how many versions it has and when it last changed. Open one to see its versions: tags on the same digest (`develop` and `a46d888c9536`) share a row. **Tags** switches back to one row per tag.
 - **Search**: by repository, tag, digest or image ID (any prefix, with or without `sha256:`), Docker reference (`api:v2.*`), label, platform, or registry. `tag:v1.*`, `arch:arm64`, `label:org.opencontainers.image.source=*acme*`, `-tag:latest`. `⌘K` finds images from anywhere.
 - **Inspect**: every platform of a multi-platform image: size, build date, entrypoint and command, environment, labels, ports, build history, layers and the raw manifest. Other tags on the same digest are listed alongside.
 - **Download**: any image (one platform of a multi-platform one) as a tar that `docker load` and OCI tools both read. Wharf streams it from the registry, checks every blob against its digest on the way, and sends the exact size so browsers show progress.

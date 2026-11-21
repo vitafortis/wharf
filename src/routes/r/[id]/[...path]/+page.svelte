@@ -10,7 +10,7 @@
 	import { copyText } from '#lib/client/clipboard.ts';
 	import { ago, bytes, dateTime, plural } from '#lib/client/format.ts';
 	import { confirmAction, shareImage, toast } from '#lib/client/state.svelte.ts';
-	import { downloadHref, imageHref, KINDS, repoHref, shortDigest } from '#lib/registries.ts';
+	import { downloadHref, groupByDigest, imageHref, KINDS, repoHref, shortDigest } from '#lib/registries.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -30,7 +30,12 @@
 	});
 
 	const repos = $derived(data.view === 'registry' ? data.repos.filter((x) => x.name.toLowerCase().includes(filter.trim().toLowerCase())) : []);
-	const tags = $derived(data.view === 'repo' ? data.tags.filter((t) => t.tag.toLowerCase().includes(filter.trim().toLowerCase()) || t.digest.includes(filter.trim().toLowerCase())) : []);
+	// One row per version: tags on the same digest are aliases of each other.
+	const versions = $derived(data.view === 'repo' ? groupByDigest(data.tags) : []);
+	const tags = $derived.by(() => {
+		const f = filter.trim().toLowerCase();
+		return f ? versions.filter((v) => [v.tag, ...v.aliases].some((t) => t.toLowerCase().includes(f)) || v.digest.includes(f)) : versions;
+	});
 	const detail = $derived(data.view === 'image' ? data.detail : null);
 	const platform = $derived(detail?.platforms[platformIndex] ?? detail?.platforms[0] ?? null);
 	const multi = $derived((detail?.platforms.length ?? 0) > 1);
@@ -108,7 +113,7 @@
 						</p>
 					{:else if data.view === 'repo'}
 						<h1 class="truncate text-2xl font-semibold tracking-tight">{data.repo}</h1>
-						<p class="mt-1 text-sm text-muted-foreground">{plural(data.tags.length, 'tag')} indexed · {r.host || 'Docker host'}</p>
+						<p class="mt-1 text-sm text-muted-foreground">{plural(versions.length, 'version')}, {plural(data.tags.length, 'tag')} · {r.host || 'Docker host'}</p>
 					{:else}
 						<h1 class="truncate text-2xl font-semibold tracking-tight">{data.repo}<span class="text-muted-foreground">{data.ref.startsWith('sha256:') ? '@' : ':'}</span><span class="text-primary">{data.ref.startsWith('sha256:') ? shortDigest(data.ref) : data.ref}</span></h1>
 						{#if detail}
@@ -174,14 +179,14 @@
 		<div class="px-4 sm:px-8">
 			<div class="relative max-w-sm">
 				<Search class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-				<input class="input pl-9" placeholder="Filter tags or digests" bind:value={filter} />
+				<input class="input pl-9" placeholder="Filter by tag or digest" bind:value={filter} />
 			</div>
 		</div>
 		<div class="mt-4 pb-12">
 			{#if tags.length}
 				<ImageTable rows={tags} {registries} showRepo={false} />
 			{:else}
-				<EmptyState icon={Tag} title={data.tags.length ? 'No tags match' : 'No tags indexed'} body={data.tags.length ? undefined : 'Sync the registry, or check the repository name.'} />
+				<EmptyState icon={Tag} title={data.tags.length ? 'No versions match' : 'No tags indexed'} body={data.tags.length ? undefined : 'Sync the registry, or check the repository name.'} />
 			{/if}
 		</div>
 	{:else}

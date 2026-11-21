@@ -86,6 +86,22 @@ export type ImageRow = {
 
 export type RepoRow = { registryId: string; name: string; tagCount: number; size: number | null; updatedAt: string | null };
 
+/** One image (a repository in a registry) in search results. */
+export type RepoSummary = {
+	registryId: string;
+	repo: string;
+	tagCount: number;
+	/** Tags that match the search (all of them when there's no search). */
+	matches: number;
+	/** Distinct digests among the matching tags. */
+	versions: number;
+	updatedAt: string | null;
+	/** The newest matching tag. */
+	latest: ImageRow;
+	/** The newest matching tags, newest first (up to 8). */
+	tags: string[];
+};
+
 export type Descriptor = { mediaType: string; digest: string; size: number; platform?: { os: string; architecture: string; variant?: string }; annotations?: Record<string, string> };
 
 /** What the image page shows for one platform. */

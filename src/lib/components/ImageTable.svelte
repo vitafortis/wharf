@@ -7,8 +7,11 @@
 	import { downloadHref, imageHref, pullRef, shortDigest } from '#lib/registries.ts';
 	import type { ImageRow, Registry } from '#lib/types.ts';
 
-	/** Tags as rows. `showRepo` for search results across repositories; off on a repository's own page. */
-	let { rows, registries, showRepo = true }: { rows: ImageRow[]; registries: Record<string, Registry>; showRepo?: boolean } = $props();
+	/**
+	 * Tags as rows. `showRepo` for search results across repositories; off on a repository's own page.
+	 * A row with `aliases` is one version: the other tags on its digest show under its tag.
+	 */
+	let { rows, registries, showRepo = true }: { rows: (ImageRow & { aliases?: string[] })[]; registries: Record<string, Registry>; showRepo?: boolean } = $props();
 
 	const platformLabel = (p: string[]) => (p.length === 0 ? '—' : p.length === 1 ? p[0].replace(/^linux\//, '') : `${p.length} platforms`);
 </script>
@@ -40,6 +43,13 @@
 								<span class="mt-0.5 flex items-center gap-1 text-[0.6875rem] text-muted-foreground"><KindIcon kind={reg.kind} class="size-3" />{reg.name}</span>
 							{/if}
 						</a>
+						{#if row.aliases?.length}
+							<span class="mt-1 flex min-w-0 flex-wrap gap-1">
+								{#each row.aliases as alias (alias)}
+									<a href={imageHref(row.registryId, row.repo, alias)} class="badge h-5 max-w-full truncate px-1.5 font-mono text-[0.6875rem] hover:text-foreground" title="Also tagged {alias}">{alias}</a>
+								{/each}
+							</span>
+						{/if}
 					</td>
 					<td class="px-3 py-2 max-sm:hidden">
 						<button class="hash text-muted-foreground hover:text-foreground" title="Copy {row.digest}" onclick={() => copyText(row.digest, 'Digest copied')}>{shortDigest(row.digest)}</button>
