@@ -13,7 +13,7 @@ ENV WHARF_VERSION=$WHARF_VERSION
 RUN pnpm build && pnpm prune --prod
 
 FROM node:24-alpine
-LABEL org.opencontainers.image.source=https://github.com/vitafortis/docker-image-manager
+LABEL org.opencontainers.image.source=https://github.com/vitafortis/wharf
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
